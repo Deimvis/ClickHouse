@@ -429,6 +429,7 @@ int mainEntryClickHouseInstall(int argc, char ** argv)
             "clickhouse-copier",
             "clickhouse-obfuscator",
             "clickhouse-git-import",
+            "clickhouse-query-parser",
             "clickhouse-compressor",
             "clickhouse-format",
             "clickhouse-extract-from-config",

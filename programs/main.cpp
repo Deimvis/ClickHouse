@@ -56,6 +56,8 @@ int mainEntryClickHouseObfuscator(int argc, char ** argv);
 #if ENABLE_CLICKHOUSE_GIT_IMPORT
 int mainEntryClickHouseGitImport(int argc, char ** argv);
 #endif
+// always enable query parser
+int mainEntryClickHouseQueryParser(int argc, char ** argv);
 #if ENABLE_CLICKHOUSE_KEEPER
 int mainEntryClickHouseKeeper(int argc, char ** argv);
 #endif
@@ -130,6 +132,8 @@ std::pair<const char *, MainFunc> clickhouse_applications[] =
 #if ENABLE_CLICKHOUSE_GIT_IMPORT
     {"git-import", mainEntryClickHouseGitImport},
 #endif
+    // always enable query parser
+    {"query-parser", mainEntryClickHouseQueryParser},
 #if ENABLE_CLICKHOUSE_KEEPER
     {"keeper", mainEntryClickHouseKeeper},
 #endif

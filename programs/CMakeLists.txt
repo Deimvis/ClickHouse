@@ -51,6 +51,8 @@ option (ENABLE_CLICKHOUSE_GIT_IMPORT "A tool to analyze Git repositories" ${ENAB
 
 option (ENABLE_CLICKHOUSE_STATIC_FILES_DISK_UPLOADER "A tool to export table data files to be later put to a static files web server" ${ENABLE_CLICKHOUSE_ALL})
 
+option (ENABLE_CLICKHOUSE_QUERY_PARSER "A tool to parse Clickhouse queries and return serialized AST" ${ENABLE_CLICKHOUSE_ALL})
+
 option (ENABLE_CLICKHOUSE_KEEPER "ClickHouse alternative to ZooKeeper" ${ENABLE_CLICKHOUSE_ALL})
 
 option (ENABLE_CLICKHOUSE_KEEPER_CONVERTER "Util allows to convert ZooKeeper logs and snapshots into clickhouse-keeper snapshot" ${ENABLE_CLICKHOUSE_ALL})
@@ -233,6 +235,7 @@ add_subdirectory (format)
 add_subdirectory (obfuscator)
 add_subdirectory (install)
 add_subdirectory (git-import)
+add_subdirectory (query-parser)
 add_subdirectory (bash-completion)
 add_subdirectory (static-files-disk-uploader)
 add_subdirectory (su)
@@ -391,6 +394,11 @@ endif ()
 if (ENABLE_CLICKHOUSE_REPORT)
     include(${ClickHouse_SOURCE_DIR}/utils/report/CMakeLists.txt)
 endif ()
+
+# always enable query parser
+add_custom_target (clickhouse-query-parser ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-query-parser DEPENDS clickhouse)
+install (FILES "${CMAKE_CURRENT_BINARY_DIR}/clickhouse-query-parser" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
+list(APPEND CLICKHOUSE_BUNDLE clickhouse-query-parser)
 
 if (ENABLE_CLICKHOUSE_KEEPER)
     if (NOT BUILD_STANDALONE_KEEPER AND CREATE_KEEPER_SYMLINK)
