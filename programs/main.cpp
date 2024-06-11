@@ -32,6 +32,7 @@ int mainEntryClickHouseDisks(int argc, char ** argv);
 int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
 int mainEntryClickHouseFormat(int argc, char ** argv);
 int mainEntryClickHouseGitImport(int argc, char ** argv);
+int mainEntryClickHouseQueryParser(int argc, char ** argv);
 int mainEntryClickHouseLocal(int argc, char ** argv);
 int mainEntryClickHouseObfuscator(int argc, char ** argv);
 int mainEntryClickHouseSU(int argc, char ** argv);
@@ -91,6 +92,7 @@ std::pair<std::string_view, MainFunc> clickhouse_applications[] =
     {"format", mainEntryClickHouseFormat},
     {"obfuscator", mainEntryClickHouseObfuscator},
     {"git-import", mainEntryClickHouseGitImport},
+    {"query-parser", mainEntryClickHouseQueryParser},
     {"static-files-disk-uploader", mainEntryClickHouseStaticFilesDiskUploader},
     {"su", mainEntryClickHouseSU},
     {"hash-binary", mainEntryClickHouseHashBinary},
