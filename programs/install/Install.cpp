@@ -440,6 +440,7 @@ int mainEntryClickHouseInstall(int argc, char ** argv)
             "clickhouse-benchmark",
             "clickhouse-obfuscator",
             "clickhouse-git-import",
+            "clickhouse-query-parser",
             "clickhouse-compressor",
             "clickhouse-format",
             "clickhouse-extract-from-config",
