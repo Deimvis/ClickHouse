@@ -1,27 +1,12 @@
 #include <iostream>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <unordered_map>
-#include <functional>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-#include <Parsers/ParserQueryWithOutput.h>
+#include <Parsers/ParserQuery.h>
 #include <Parsers/parseQuery.h>
-#include <Parsers/formatAST.h>
-#include <IO/WriteBufferFromOStream.h>
-#include <Parsers/ASTSelectQuery.h>
-#include <Parsers/ASTExplainQuery.h>
-#include <Parsers/ASTIdentifier.h>
-#include <Parsers/ASTTablesInSelectQuery.h>
-#include <Parsers/ASTSelectWithUnionQuery.h>
-#include <Parsers/ASTExpressionList.h>
-#include <Parsers/ASTLiteral.h>
-#include <Parsers/DumpASTNode.h>
-#include <Common/JSONBuilder.h>
-#include <Parsers/ASTAlterNamedCollectionQuery.h>
 
 #include "JsonSerialization.hpp"
 #include "ASTSerialization.hpp"
@@ -87,7 +72,7 @@ int mainEntryClickHouseQueryParser(int argc, char** argv) {
     }
     fmt::print(stderr, "Input query:\n`{}`\n", query);
 
-    ParserQueryWithOutput parser(query.data() + query.size());
+    ParserQuery parser(query.data() + query.size(), true);
     ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0, 0);
     std::string serialized_ast;
     switch (args.serialization_format) {
