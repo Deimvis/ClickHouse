@@ -72,7 +72,7 @@ int mainEntryClickHouseQueryParser(int argc, char** argv) {
     }
     fmt::print(stderr, "Input query:\n`{}`\n", query);
 
-    ParserQuery parser(query.data() + query.size(), true);
+    ParserQuery parser(query.data() + query.size(), false);
     ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0, 0);
     std::string serialized_ast;
     switch (args.serialization_format) {
