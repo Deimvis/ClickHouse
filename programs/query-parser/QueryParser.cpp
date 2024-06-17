@@ -62,6 +62,24 @@ Args parseArgs(int argc, char** argv) {
     return args;
 }
 
+std::string parseQuery(const std::string& query, const Args::Format& format) {
+    using namespace DB;
+
+    ParserQuery parser(query.data() + query.size(), false);
+    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0, 0);
+    std::string serialized_ast;
+    switch (format) {
+    case Args::Format::F_JSON:
+        serialized_ast = SerializeToJSON(ast);
+        break;
+    case Args::Format::F_DOT:
+        serialized_ast = SerializeToDot(ast);
+        break;
+    }
+    return serialized_ast;
+}
+
+
 int mainEntryClickHouseQueryParser(int argc, char** argv) {
     using namespace DB;
 
@@ -72,17 +90,27 @@ int mainEntryClickHouseQueryParser(int argc, char** argv) {
     }
     fmt::print(stderr, "Input query:\n`{}`\n", query);
 
-    ParserQuery parser(query.data() + query.size(), false);
-    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0, 0);
-    std::string serialized_ast;
-    switch (args.serialization_format) {
-    case Args::Format::F_JSON:
-        serialized_ast = SerializeToJSON(ast);
-        break;
-    case Args::Format::F_DOT:
-        serialized_ast = SerializeToDot(ast);
-        break;
-    }
+    std::string serialized_ast = parseQuery(query, args.serialization_format);
     fmt::print(stdout, "{}", serialized_ast);
     return 0;
+}
+
+extern "C" {
+    char* parse_query(char* query, char* exc) {
+        std::string serialized_ast;
+        try {
+            serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
+        } catch (const std::exception& e) {
+            strncpy(exc, e.what(), 1024);
+            exc[1023] = '\0';
+            return nullptr;
+        }
+        char* result = reinterpret_cast<char*>(malloc(serialized_ast.size() + 1));
+        std::strcpy(result, serialized_ast.c_str());
+        return result;
+    }
+    
+    void free_ast(char* ast) {
+        free(ast);
+    }
 }
