@@ -10,9 +10,9 @@ TEST(JsonSerialization, int) {
   CHECK(int, 42, 42);
 }
 
-
 TEST(JsonSerialization, string) {
-  CHECK(std::string, "hello, world", "hello, world");
+  check(R"(hello, world)", R"("hello, world")");
+  check(R"(escaping " \ \' \n)", R"("escaping \" \\ \\' \\n")");
 }
 
 TEST(JsonSerialization, vectorInt) {
