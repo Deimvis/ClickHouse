@@ -1,7 +1,9 @@
 #pragma once
 
 #include <concepts>
+#include <iomanip>
 #include <ranges>
+#include <sstream>
 #include <type_traits>
 
 #include <fmt/format.h>
@@ -38,9 +40,12 @@ std::string SerializeToJSON(const T& v) {
     return fmt::format("{}", v);
 }
 
+std::string escape(std::string_view s);
+
 template <StringLike T>
 std::string SerializeToJSON(const T& v) {
-    return fmt::format("\"{}\"", v);
+    auto escaped_v = escape(v);
+    return fmt::format("\"{}\"", escaped_v);
 }
 
 template <Dumpable T>

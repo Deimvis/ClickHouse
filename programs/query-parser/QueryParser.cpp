@@ -79,7 +79,6 @@ std::string parseQuery(const std::string& query, const Args::Format& format) {
     return serialized_ast;
 }
 
-
 int mainEntryClickHouseQueryParser(int argc, char** argv) {
     using namespace DB;
 
@@ -112,5 +111,29 @@ extern "C" {
     
     void free_ast(char* ast) {
         free(ast);
+    }
+
+    // return values: ast_json, error_msg
+    void parse_query_v2(char* query, char** ast_json, char** error_msg) {
+        std::string serialized_ast;
+        try {
+            serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            strcpy(*error_msg, msg);
+            (*error_msg)[strlen(msg)] = '\0';
+            return;
+        }
+        *ast_json = reinterpret_cast<char*>(malloc(serialized_ast.size() + 1));
+        strcpy(*ast_json, serialized_ast.c_str());
+    }
+    
+    void free_ast_v2(char** ast_json) {
+        free(ast_json);
+    }
+    
+    void free_error_v2(char** error_msg) {
+        free(error_msg);
     }
 }
