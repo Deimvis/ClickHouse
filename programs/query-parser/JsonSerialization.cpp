@@ -14,7 +14,7 @@ std::string SerializeToJSON(const DB::SettingChange& v) {
 
 std::string escape(std::string_view s) {
     std::ostringstream out;
-    for (const auto& c : s) {
+    for (const char c : s) {
         switch (c) {
         case '"': out << "\\\""; break;
         case '\\': out << "\\\\"; break;
@@ -24,7 +24,7 @@ std::string escape(std::string_view s) {
         case '\r': out << "\\r"; break;
         case '\t': out << "\\t"; break;
         default:
-            if ('\x00' <= c && c <= '\x1f') {
+            if (c <= '\x1f') {
                 out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c);
             } else {
                 out << c;
