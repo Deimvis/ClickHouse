@@ -129,11 +129,11 @@ extern "C" {
         strcpy(*ast_json, serialized_ast.c_str());
     }
     
-    void free_ast_v2(char** ast_json) {
+    void free_ast_v2(char* ast_json) {
         free(ast_json);
     }
     
-    void free_error_v2(char** error_msg) {
+    void free_error_v2(char* error_msg) {
         free(error_msg);
     }
 }
