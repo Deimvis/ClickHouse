@@ -95,7 +95,7 @@ int mainEntryClickHouseQueryParser(int argc, char** argv) {
 }
 
 extern "C" {
-    char* parse_query(char* query, char* exc) {
+    char* __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_parse_query(char* query, char* exc) {
         std::string serialized_ast;
         try {
             serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
@@ -109,12 +109,12 @@ extern "C" {
         return result;
     }
     
-    void free_ast(char* ast) {
+    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_ast(char* ast) {
         free(ast);
     }
 
     // return values: ast_json, error_msg
-    void parse_query_v2(char* query, char** ast_json, char** error_msg) {
+    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_parse_query_v2(char* query, char** ast_json, char** error_msg) {
         std::string serialized_ast;
         try {
             serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
@@ -129,11 +129,11 @@ extern "C" {
         strcpy(*ast_json, serialized_ast.c_str());
     }
     
-    void free_ast_v2(char* ast_json) {
+    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_ast_v2(char* ast_json) {
         free(ast_json);
     }
     
-    void free_error_v2(char* error_msg) {
+    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_error_v2(char* error_msg) {
         free(error_msg);
     }
 }
