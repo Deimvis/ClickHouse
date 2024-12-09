@@ -419,7 +419,13 @@ set (CMAKE_POSTFIX_VARIABLE "CMAKE_${CMAKE_BUILD_TYPE_UC}_POSTFIX")
 if (NOT SANITIZE)
     set (CMAKE_POSITION_INDEPENDENT_CODE OFF)
 endif()
-set (CMAKE_POSITION_INDEPENDENT_CODE ON) # force position independent code for shared library
+
+# force position independent code for shared library
+set (CMAKE_POSITION_INDEPENDENT_CODE ON)
+# force -fvisibility=hidden for shared library
+set(CXX_VISIBILITY_PRESET hidden)
+set(C_VISIBILITY_PRESET hidden ON)
+set(VISIBILITY_INLINES_HIDDEN ON)
 
 if (NOT OS_ANDROID AND OS_LINUX AND NOT ARCH_S390X AND NOT SANITIZE)
     # Using '-no-pie' builds executables with fixed addresses, resulting in slightly more efficient code
