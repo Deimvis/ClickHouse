@@ -42,7 +42,7 @@ private:
     using NodeID = std::string;
     using Edge = std::pair<NodeID, NodeID>;
 
-    std::string buildDOTImpl(std::vector<Edge>& edges) const;
+    std::string buildDOTNodes(std::vector<Edge>& edges) const;
 
     std::string id;
     std::vector<Attribute> attributes;
