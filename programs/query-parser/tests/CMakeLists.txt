@@ -15,15 +15,8 @@ if (ENABLE_TESTS)
 
     target_link_libraries(query_parser_unit_tests PRIVATE
         ch_contrib::gmock_all
-        ch_contrib::gtest
-        clickhouse_functions
-        clickhouse_aggregate_functions
-        clickhouse_parsers
-        clickhouse_storages_system
-        dbms
-        clickhouse_common_config
-        clickhouse_common_zookeeper
-        hilite_comparator)
+        ch_contrib::gtest_all
+    )
     
     target_link_libraries(query_parser_unit_tests PUBLIC clickhouse-query-parser-lib)
 

@@ -314,6 +314,8 @@ endif ()
 if (ENABLE_CLICKHOUSE_KEEPER)
     clickhouse_target_link_split_lib(clickhouse keeper)
 endif()
+# always enable query parser
+clickhouse_target_link_split_lib(clickhouse query-parser)
 if (ENABLE_CLICKHOUSE_KEEPER_CONVERTER)
     clickhouse_target_link_split_lib(clickhouse keeper-converter)
 endif()

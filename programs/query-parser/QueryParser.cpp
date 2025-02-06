@@ -45,9 +45,9 @@ std::string readStdin() {
 std::string strip(const std::string &inpt) {
     auto start_it = inpt.begin();
     auto end_it = inpt.rbegin();
-    while (std::isspace(*start_it) && (start_it < end_it.base()))
+    while (std::isspace(*start_it) != 0 && (start_it < end_it.base()))
         ++start_it;
-    while (std::isspace(*end_it) && (start_it < end_it.base()))
+    while (std::isspace(*end_it) != 0 && (start_it < end_it.base()))
         ++end_it;
     return std::string(start_it, end_it.base());
 }
@@ -66,7 +66,7 @@ std::string parseQuery(const std::string& query, const Args::Format& format) {
     using namespace DB;
 
     ParserQuery parser(query.data() + query.size(), false);
-    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0, 0);
+    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, 0);
     std::string serialized_ast;
     switch (format) {
     case Args::Format::F_JSON:

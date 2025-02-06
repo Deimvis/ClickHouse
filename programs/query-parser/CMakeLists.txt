@@ -1,10 +1,19 @@
-set (CLICKHOUSE_QUERY_PARSER_SOURCES ASTCustomAttributes.cpp ASTSerialization.cpp ASTNodeBuilder.cpp JsonSerialization.cpp Macros.cpp QueryParser.cpp)
+set (CLICKHOUSE_QUERY_PARSER_SOURCES
+    ASTCustomAttributes.cpp
+    ASTSerialization.cpp
+    ASTNodeBuilder.cpp
+    JsonSerialization.cpp
+    Macros.cpp
+    QueryParser.cpp
+    
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/Server/ServerType.cpp
+)
 set (CLICKHOUSE_QUERY_PARSER_LINK
     PRIVATE
         dbms
         clickhouse_parsers
 )
-clickhouse_program_add_library(query-parser)
+clickhouse_program_add(query-parser)
 
 add_library(clickhouse_query_parser_SO SHARED ${CLICKHOUSE_QUERY_PARSER_SOURCES})
 set_target_properties(clickhouse_query_parser_SO PROPERTIES

@@ -429,6 +429,10 @@ endif()
 
 # force position independent code for shared library
 set (CMAKE_POSITION_INDEPENDENT_CODE ON)
+# force -fvisibility=hidden 
+set(CXX_VISIBILITY_PRESET hidden)
+set(C_VISIBILITY_PRESET hidden)
+set(VISIBILITY_INLINES_HIDDEN ON)
 
 if (OS_LINUX AND NOT (ARCH_AARCH64 OR ARCH_S390X) AND NOT SANITIZE)
     # Slightly more efficient code can be generated
