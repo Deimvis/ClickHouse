@@ -4,7 +4,7 @@ set (CLICKHOUSE_QUERY_PARSER_LINK
         dbms
         clickhouse_parsers
 )
-clickhouse_program_add_library(query-parser)
+clickhouse_program_add(query-parser)
 
 add_library(clickhouse_query_parser_SO SHARED ${CLICKHOUSE_QUERY_PARSER_SOURCES})
 set_target_properties(clickhouse_query_parser_SO PROPERTIES
