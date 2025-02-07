@@ -447,6 +447,10 @@ endif()
 
 # force position independent code for shared library
 set (CMAKE_POSITION_INDEPENDENT_CODE ON)
+# force -fvisibility=hiddend
+set(CXX_VISIBILITY_PRESET hidden)
+set(C_VISIBILITY_PRESET hidden)
+set(VISIBILITY_INLINES_HIDDEN ON)
 
 if (ENABLE_POSITION_INDEPENDENT_BINARY)
     set (CMAKE_POSITION_INDEPENDENT_CODE OFF)
