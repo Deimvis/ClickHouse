@@ -1,4 +1,6 @@
-set (CLICKHOUSE_QUERY_PARSER_SOURCES ASTCustomAttributes.cpp ASTSerialization.cpp ASTNodeBuilder.cpp JsonSerialization.cpp Macros.cpp QueryParser.cpp)
+set (CLICKHOUSE_QUERY_PARSER_SOURCES ASTCustomAttributes.cpp ASTSerialization.cpp ASTNodeBuilder.cpp JsonSerialization.cpp Macros.cpp QueryParser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/Common/Config/ConfigHelper.cpp
+)
 set (CLICKHOUSE_QUERY_PARSER_LINK
     PRIVATE
         dbms
