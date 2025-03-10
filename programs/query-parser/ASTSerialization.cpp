@@ -1,5 +1,6 @@
 #include "ASTSerialization.hpp"
 
+#include <Common/config_version.h>
 #include <Parsers/formatAST.h>
 
 #include "ASTCustomAttributes.hpp"
@@ -20,10 +21,12 @@ ASTNodeBuilder MakeBuilder(DB::ASTPtr ast) {
 
 std::string SerializeToJSON(DB::ASTPtr ast) {
     auto builder = MakeBuilder(ast);
+    builder.emplaceAttribute("clickhouse_version", VERSION_STRING);
     return builder.buildJSON();
 }
 
 std::string SerializeToDot(DB::ASTPtr ast) {
     auto builder = MakeBuilder(ast);
+    builder.emplaceAttribute("clickhouse_version", VERSION_STRING);
     return builder.buildDOT();
 }
