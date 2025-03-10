@@ -151,7 +151,7 @@ AST_CUSTOM_ATTRIBUTES(DB::ASTRenameQuery, exchange, database, dictionary, rename
 // AST_CUSTOM_ATTRIBUTES(DB::ASTSelectIntersectExceptQuery)
 AST_CUSTOM_ATTRIBUTES(DB::ASTSelectQuery, recursive_with, distinct, group_by_all, group_by_with_totals, group_by_with_rollup, group_by_with_cube, group_by_with_constant_keys, group_by_with_grouping_sets, order_by_all, limit_with_ties)
 AST_CUSTOM_ATTRIBUTES(DB::ASTSelectWithUnionQuery, union_mode, list_of_modes, is_normalized, set_of_modes)
-AST_CUSTOM_ATTRIBUTES(DB::ASTSetQuery, is_standalone, print_in_format, changes, default_settings, query_parameters)
+AST_CUSTOM_ATTRIBUTES(DB::ASTSetQuery, is_standalone, changes, default_settings, query_parameters)
 AST_CUSTOM_ATTRIBUTES(DB::ASTShowColumnsQuery, extended, full, not_like, case_insensitive_like, database, table, like)
 // AST_CUSTOM_ATTRIBUTES(DB::ASTShowEngineQuery)
 AST_CUSTOM_ATTRIBUTES(DB::ASTShowFunctionsQuery, case_insensitive_like, like)
