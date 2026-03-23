@@ -128,7 +128,6 @@ static DB::ASTPtr parseExpressionToAST(const std::string & expr_str)
     if (!select_ast)
         throw Exception(DB::ErrorCodes::SYNTAX_ERROR, "Failed to parse expression: {}", expr_str);
         
-    // Извлекаем первый элемент из списка SELECT
     if (auto * select = dynamic_cast<DB::ASTSelectQuery *>(select_ast.get()))
     {
         DB::ASTPtr list = select->select();
