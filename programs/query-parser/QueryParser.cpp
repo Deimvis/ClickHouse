@@ -95,7 +95,6 @@ std::string parseQuery(const std::string& query, const Args::Format& format) {
     return serialized_ast;
 }
 
-// --- Логика добавления колонки ---
 
 namespace DB
 {
@@ -114,12 +113,10 @@ static DB::ASTPtr parseSqlToAST(const std::string & sql)
     return parseQuery(parser, begin, end, "", 0, 0, 0);
 }
 
-// Парсит строку выражения (например "122 as insert_id") в AST узел
 static DB::ASTPtr parseExpressionToAST(const std::string & expr_str)
 {
     using namespace DB;
     
-    // Оборачиваем в SELECT
     std::string wrapped_query = "SELECT " + expr_str;
     
     ParserSelectQuery parser; 
@@ -200,7 +197,6 @@ static bool columnExists(const DB::ASTPtr & expression_list, const std::string &
 
 struct AddColumnParams {
     bool format_only = false;
-    // quote_identifier убран
     std::string column_name;
 };
 
@@ -248,7 +244,6 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
 
     std::cerr << "[C++] Found " << selects.size() << " SELECT queries to modify." << std::endl;
 
-    // Извлекаем потенциальный алиас из строки column_name
     size_t as_pos = params.column_name.find(" as ");
     std::string potential_alias;
     if (as_pos != std::string::npos)
@@ -265,7 +260,6 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
             {
                 std::cerr << "[C++] Adding column: " << params.column_name << std::endl;
                 
-                // ВСЕГДА парсим как выражение (поддержит и "id", и "122 as insert_id")
                 DB::ASTPtr new_col_node = parseExpressionToAST(params.column_name);
 
                 select_expression->children.push_back(new_col_node);
@@ -279,8 +273,6 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
 
     return formatASTtoSQL(ast);
 }
-
-// --- Конец логики добавления колонки ---
 
 
 int mainEntryClickHouseQueryParser(int argc, char** argv) {
@@ -317,6 +309,7 @@ extern "C" {
         free(ast);
     }
 
+    // return values: ast_json, error_msg
     void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_parse_query_v2(char* query, char** ast_json, char** error_msg) {
         std::string serialized_ast;
         try {
