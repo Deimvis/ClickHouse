@@ -144,7 +144,7 @@ static std::string formatASTtoSQL(DB::ASTPtr ast)
 {
     using namespace DB;
     WriteBufferFromOwnString out;
-    formatAST(*ast, out, true, false);
+    formatAST(*ast, out, false, false);
     out << ";";
     out.finalize();
     return out.str();
