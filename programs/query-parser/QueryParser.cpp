@@ -1,11 +1,8 @@
-#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <set>
 
 #include <fmt/format.h>
-#include <fmt/ranges.h>
 
 #include <Parsers/ParserQuery.h>
 #include <Parsers/ParserSelectQuery.h>
@@ -15,9 +12,7 @@
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTIdentifier.h>
-#include <Parsers/ASTExpressionList.h>
 #include <Parsers/ASTWithAlias.h>
-#include <IO/ReadBufferFromString.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
 #include <Common/Exception.h>
@@ -44,7 +39,7 @@ Args::Format parseFormat(const std::string& format_str) {
     };
     auto it = mapping.find(format_str);
     if (it == mapping.end()) {
-        throw std::runtime_error(fmt::format("No format found for `{}` (only `json` and `dot` are avaiable)", format_str));
+        throw std::runtime_error(fmt::format("No format found for `{}` (only `json` and `dot` are available)", format_str));
     }
     return it->second;
 }
@@ -59,6 +54,7 @@ std::string readStdin() {
 }
 
 std::string strip(const std::string &inpt) {
+    if (inpt.empty()) return inpt;
     auto start_it = inpt.begin();
     auto end_it = inpt.rbegin();
     while (std::isspace(*start_it) && (start_it < end_it.base()))
@@ -170,26 +166,23 @@ static void collectSelects(DB::ASTPtr node, std::vector<DB::ASTSelectQuery *> & 
     }
 }
 
-static bool columnExists(const DB::ASTPtr & expression_list, const std::string & col_name, const std::string & alias_name)
+static bool columnExists(const DB::ASTPtr & expression_list, const std::string & target_name)
 {
     if (!expression_list) return false;
     
     for (const auto & child : expression_list->children)
     {
-        std::string existing_alias = "";
         if (auto * with_alias = dynamic_cast<DB::ASTWithAlias *>(child.get()))
         {
-            existing_alias = with_alias->alias;
+            if (!with_alias->alias.empty() && with_alias->alias == target_name)
+                return true;
         }
         
-        std::string existing_name = "";
         if (auto * identifier = dynamic_cast<DB::ASTIdentifier *>(child.get()))
         {
-            existing_name = identifier->shortName();
+            if (identifier->shortName() == target_name)
+                return true;
         }
-
-        if (!alias_name.empty() && existing_alias == alias_name) return true;
-        if (!col_name.empty() && existing_name == col_name) return true;
     }
     return false;
 }
@@ -241,31 +234,27 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
     std::vector<DB::ASTSelectQuery *> selects;
     collectSelects(ast, selects);
 
-    std::cerr << "[C++] Found " << selects.size() << " SELECT queries to modify." << std::endl;
-
     size_t as_pos = params.column_name.find(" as ");
-    std::string potential_alias;
+    std::string target_name;
     if (as_pos != std::string::npos)
     {
-        potential_alias = params.column_name.substr(as_pos + 4);
+        target_name = params.column_name.substr(as_pos + 4);
     }
+    else
+    {
+        target_name = params.column_name;
+    }
+
+    DB::ASTPtr new_col_template = parseExpressionToAST(params.column_name);
 
     for (auto * select : selects)
     {
         ASTPtr select_expression = select->select();
         if (select_expression)
         {
-            if (!columnExists(select_expression, params.column_name, potential_alias))
+            if (!columnExists(select_expression, target_name))
             {
-                std::cerr << "[C++] Adding column: " << params.column_name << std::endl;
-                
-                DB::ASTPtr new_col_node = parseExpressionToAST(params.column_name);
-
-                select_expression->children.push_back(new_col_node);
-            }
-            else
-            {
-                std::cerr << "[C++] Column " << params.column_name << " already exists, skipping." << std::endl;
+                select_expression->children.push_back(new_col_template->clone());
             }
         }
     }
@@ -290,61 +279,92 @@ int mainEntryClickHouseQueryParser(int argc, char** argv) {
 }
 
 extern "C" {
-    char* __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_parse_query(char* query, char* exc) {
-        std::string serialized_ast;
-        try {
-            serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
-        } catch (const std::exception& e) {
-            strncpy(exc, e.what(), 1024);
-            exc[1023] = '\0';
-            return nullptr;
-        }
-        char* result = reinterpret_cast<char*>(malloc(serialized_ast.size() + 1));
-        std::strcpy(result, serialized_ast.c_str());
-        return result;
-    }
-    
-    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_ast(char* ast) {
-        free(ast);
-    }
-
-    // return values: ast_json, error_msg
-    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_parse_query_v2(char* query, char** ast_json, char** error_msg) {
+    void __attribute__((visibility("default"))) chqp_parse_query(char* query, char** ast_json, char** error_msg) {
+        *ast_json = nullptr;
+        *error_msg = nullptr;
         std::string serialized_ast;
         try {
             serialized_ast = parseQuery(std::string(query), Args::Format::F_JSON);
         } catch (const std::exception& e) {
             const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
+            return;
+        } catch (...) {
+            const char* msg = "Unknown error";
             *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
-            strcpy(*error_msg, msg);
-            (*error_msg)[strlen(msg)] = '\0';
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
             return;
         }
         *ast_json = reinterpret_cast<char*>(malloc(serialized_ast.size() + 1));
-        strcpy(*ast_json, serialized_ast.c_str());
+        std::memcpy(*ast_json, serialized_ast.c_str(), serialized_ast.size() + 1);
     }
     
-    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_ast_v2(char* ast_json) {
+    void __attribute__((visibility("default"))) chqp_free_ast(char* ast_json) {
         free(ast_json);
     }
     
-    void __attribute__((visibility("default"))) chqp_2b52ae1fb9f4ec8c46b8c527df829c25_free_error_v2(char* error_msg) {
+    void __attribute__((visibility("default"))) chqp_free_error(char* error_msg) {
         free(error_msg);
     }
 
-    char* __attribute__((visibility("default"))) chqp_add_column_to_sql(char* sql, char* params_json) {
-        thread_local static std::vector<char> buffer;
-        
+    void __attribute__((visibility("default"))) chqp_format_query(char* sql, char** result_sql, char** error_msg) {
+        *result_sql = nullptr;
+        *error_msg = nullptr;
+        try {
+            AddColumnParams params;
+            params.format_only = true;
+            std::string result = addExtraColumnImpl(std::string(sql), params);
+            
+            *result_sql = reinterpret_cast<char*>(malloc(result.size() + 1));
+            std::memcpy(*result_sql, result.c_str(), result.size() + 1);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
+        } catch (...) {
+            const char* msg = "Unknown error";
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
+        }
+    }
+    
+    void __attribute__((visibility("default"))) chqp_free_format_result(char* result_sql) {
+        free(result_sql);
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_format_error(char* error_msg) {
+        free(error_msg);
+    }
+
+    void __attribute__((visibility("default"))) chqp_add_column_to_sql(char* sql, char* params_json, char** result_sql, char** error_msg) {
+        *result_sql = nullptr;
+        *error_msg = nullptr;
         try {
             AddColumnParams params = parseParams(std::string(params_json));
             std::string result = addExtraColumnImpl(std::string(sql), params);
             
-            buffer.resize(result.size() + 1);
-            std::memcpy(buffer.data(), result.c_str(), result.size() + 1);
-            
-            return buffer.data();
+            *result_sql = reinterpret_cast<char*>(malloc(result.size() + 1));
+            std::memcpy(*result_sql, result.c_str(), result.size() + 1);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
         } catch (...) {
-            return nullptr;
+            const char* msg = "Unknown error";
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
         }
+    }
+    
+    void __attribute__((visibility("default"))) chqp_free_add_column_result(char* result_sql) {
+        free(result_sql);
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_add_column_error(char* error_msg) {
+        free(error_msg);
     }
 }
