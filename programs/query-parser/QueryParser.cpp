@@ -25,6 +25,11 @@
 #include "ASTSerialization.hpp"
 
 
+#include <Common/checkStackSize.h>
+
+void checkStackSize() {}
+
+
 struct Args {
     enum Format {
         F_JSON,
