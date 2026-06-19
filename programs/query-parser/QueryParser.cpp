@@ -13,6 +13,8 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTWithAlias.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTLiteral.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
 #include <Common/Exception.h>
@@ -21,6 +23,11 @@
 
 #include "JsonSerialization.hpp"
 #include "ASTSerialization.hpp"
+
+
+#include <Common/checkStackSize.h>
+
+void checkStackSize() {}
 
 
 struct Args {
@@ -263,6 +270,151 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
 }
 
 
+static void collectSecretIdsFromTree(DB::ASTPtr node, std::vector<std::string> & out_ids)
+{
+    if (!node) return;
+
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+    {
+        if (func->name == "$secret_id")
+        {
+            if (func->arguments && !func->arguments->children.empty())
+            {
+                auto & first_arg = func->arguments->children[0];
+                if (auto * literal = dynamic_cast<DB::ASTLiteral *>(first_arg.get()))
+                {
+                    if (literal->value.getType() == DB::Field::Types::String)
+                        out_ids.push_back(literal->value.safeGet<std::string>());
+                }
+            }
+            return;
+        }
+    }
+
+    for (const auto & child : node->children)
+        collectSecretIdsFromTree(child, out_ids);
+}
+
+static void findRemoteSecretIds(DB::ASTPtr node, std::vector<std::string> & out_ids)
+{
+    if (!node) return;
+
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+    {
+        if (func->name == "remote" || func->name == "remoteSecure")
+        {
+            if (func->arguments)
+            {
+                for (const auto & arg : func->arguments->children)
+                    collectSecretIdsFromTree(arg, out_ids);
+            }
+        }
+    }
+
+    for (const auto & child : node->children)
+        findRemoteSecretIds(child, out_ids);
+}
+
+static std::string extractSecretIdsImpl(const std::string & sql)
+{
+    using namespace DB;
+
+    ASTPtr ast = parseSqlToAST(sql);
+    if (!ast)
+        throw Exception(ErrorCodes::SYNTAX_ERROR, "Failed to parse SQL");
+
+    std::vector<std::string> secret_ids;
+    findRemoteSecretIds(ast, secret_ids);
+
+    return SerializeToJSON(secret_ids);
+}
+
+static void replaceSecretIdInTree(DB::ASTPtr & node, const std::unordered_map<std::string, std::string> & replacements)
+{
+    if (!node) return;
+
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+    {
+        if (func->name == "$secret_id")
+        {
+            if (func->arguments && !func->arguments->children.empty())
+            {
+                auto & first_arg = func->arguments->children[0];
+                if (auto * literal = dynamic_cast<DB::ASTLiteral *>(first_arg.get()))
+                {
+                    if (literal->value.getType() == DB::Field::Types::String)
+                    {
+                        auto it = replacements.find(literal->value.safeGet<std::string>());
+                        if (it != replacements.end())
+                        {
+                            auto new_literal = std::make_shared<DB::ASTLiteral>(DB::Field(std::string(it->second)));
+                            node = new_literal;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (auto & child : node->children)
+        replaceSecretIdInTree(child, replacements);
+}
+
+static void replaceRemoteSecretIds(DB::ASTPtr node, const std::unordered_map<std::string, std::string> & replacements)
+{
+    if (!node) return;
+
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+    {
+        if (func->name == "remote" || func->name == "remoteSecure")
+        {
+            if (func->arguments)
+            {
+                for (auto & arg : func->arguments->children)
+                    replaceSecretIdInTree(arg, replacements);
+            }
+        }
+    }
+
+    for (const auto & child : node->children)
+        replaceRemoteSecretIds(child, replacements);
+}
+
+static std::unordered_map<std::string, std::string> parseReplacements(const std::string & json_str)
+{
+    std::unordered_map<std::string, std::string> replacements;
+    if (json_str.empty()) return replacements;
+
+    try {
+        Poco::JSON::Parser parser;
+        Poco::Dynamic::Var result = parser.parse(json_str);
+        Poco::JSON::Object::Ptr obj = result.extract<Poco::JSON::Object::Ptr>();
+
+        for (auto it = obj->begin(); it != obj->end(); ++it)
+            replacements[it->first] = it->second.convert<std::string>();
+    } catch (...) {
+    }
+    return replacements;
+}
+
+static std::string replaceSecretIdsImpl(const std::string & sql, const std::string & replacements_json)
+{
+    using namespace DB;
+
+    auto replacements = parseReplacements(replacements_json);
+
+    ASTPtr ast = parseSqlToAST(sql);
+    if (!ast)
+        throw Exception(ErrorCodes::SYNTAX_ERROR, "Failed to parse SQL");
+
+    if (!replacements.empty())
+        replaceRemoteSecretIds(ast, replacements);
+
+    return formatASTtoSQL(ast);
+}
+
+
 int mainEntryClickHouseQueryParser(int argc, char** argv) {
     using namespace DB;
 
@@ -365,6 +517,60 @@ extern "C" {
     }
 
     void __attribute__((visibility("default"))) chqp_free_add_column_error(char* error_msg) {
+        free(error_msg);
+    }
+
+    void __attribute__((visibility("default"))) chqp_extract_secret_ids(char* sql, char** result_json, char** error_msg) {
+        *result_json = nullptr;
+        *error_msg = nullptr;
+        try {
+            std::string result = extractSecretIdsImpl(std::string(sql));
+            *result_json = reinterpret_cast<char*>(malloc(result.size() + 1));
+            std::memcpy(*result_json, result.c_str(), result.size() + 1);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
+        } catch (...) {
+            const char* msg = "Unknown error";
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
+        }
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_extract_secret_ids_result(char* result_json) {
+        free(result_json);
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_extract_secret_ids_error(char* error_msg) {
+        free(error_msg);
+    }
+
+    void __attribute__((visibility("default"))) chqp_replace_secret_ids(char* sql, char* replacements_json, char** result_sql, char** error_msg) {
+        *result_sql = nullptr;
+        *error_msg = nullptr;
+        try {
+            std::string result = replaceSecretIdsImpl(std::string(sql), std::string(replacements_json));
+            *result_sql = reinterpret_cast<char*>(malloc(result.size() + 1));
+            std::memcpy(*result_sql, result.c_str(), result.size() + 1);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
+        } catch (...) {
+            const char* msg = "Unknown error";
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
+        }
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_replace_secret_ids_result(char* result_sql) {
+        free(result_sql);
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_replace_secret_ids_error(char* error_msg) {
         free(error_msg);
     }
 }
