@@ -287,6 +287,7 @@ static void collectSecretIdsFromTree(DB::ASTPtr node, std::vector<std::string> &
                         out_ids.push_back(literal->value.safeGet<std::string>());
                 }
             }
+            return;
         }
     }
 
@@ -325,15 +326,7 @@ static std::string extractSecretIdsImpl(const std::string & sql)
     std::vector<std::string> secret_ids;
     findRemoteSecretIds(ast, secret_ids);
 
-    std::string result = "[";
-    for (size_t i = 0; i < secret_ids.size(); ++i)
-    {
-        if (i > 0) result += ",";
-        result += "\"" + secret_ids[i] + "\"";
-    }
-    result += "]";
-
-    return result;
+    return SerializeToJSON(secret_ids);
 }
 
 static void replaceSecretIdInTree(DB::ASTPtr & node, const std::unordered_map<std::string, std::string> & replacements)
