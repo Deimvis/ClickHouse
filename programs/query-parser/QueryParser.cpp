@@ -1,3 +1,4 @@
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -46,7 +47,7 @@ Args::Format parseFormat(const std::string& format_str) {
     };
     auto it = mapping.find(format_str);
     if (it == mapping.end()) {
-        throw std::runtime_error(fmt::format("No format found for `{}` (only `json` and `dot` are available)", format_str));
+        throw std::runtime_error(fmt::format("No format found for `{}` (only `json` and `dot` are avaiable)", format_str));
     }
     return it->second;
 }
@@ -61,7 +62,6 @@ std::string readStdin() {
 }
 
 std::string strip(const std::string &inpt) {
-    if (inpt.empty()) return inpt;
     auto start_it = inpt.begin();
     auto end_it = inpt.rbegin();
     while (std::isspace(*start_it) && (start_it < end_it.base()))
@@ -241,6 +241,8 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
     std::vector<DB::ASTSelectQuery *> selects;
     collectSelects(ast, selects);
 
+    std::cerr << "[C++] Found " << selects.size() << " SELECT queries to modify." << std::endl;
+
     size_t as_pos = params.column_name.find(" as ");
     std::string target_name;
     if (as_pos != std::string::npos)
@@ -261,7 +263,13 @@ static std::string addExtraColumnImpl(const std::string & sql, const AddColumnPa
         {
             if (!columnExists(select_expression, target_name))
             {
+                std::cerr << "[C++] Adding column: " << params.column_name << std::endl;
+                
                 select_expression->children.push_back(new_col_template->clone());
+            }
+            else
+            {
+                std::cerr << "[C++] Column " << params.column_name << " already exists, skipping." << std::endl;
             }
         }
     }
@@ -412,6 +420,130 @@ static std::string replaceSecretIdsImpl(const std::string & sql, const std::stri
         replaceRemoteSecretIds(ast, replacements);
 
     return formatASTtoSQL(ast);
+}
+
+static bool isSecretIdCall(const DB::ASTPtr & node)
+{
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+        return func->name == "$secret_id";
+    return false;
+}
+
+static bool isStringLiteral(const DB::ASTPtr & node)
+{
+    if (auto * literal = dynamic_cast<DB::ASTLiteral *>(node.get()))
+        return literal->value.getType() == DB::Field::Types::String;
+    return false;
+}
+
+static bool isPasswordArg(const DB::ASTPtr & node)
+{
+    return isStringLiteral(node) || isSecretIdCall(node);
+}
+
+static std::optional<size_t> getPasswordArgIndex(const DB::ASTFunction * func)
+{
+    if (!func->arguments)
+        return std::nullopt;
+
+    const auto & args = func->arguments->children;
+    if (args.empty())
+        return std::nullopt;
+
+    size_t arg_num = 1;
+
+    if (arg_num >= args.size())
+        return std::nullopt;
+
+    const auto & second_arg = args[arg_num];
+
+    if (auto * f = dynamic_cast<DB::ASTFunction *>(second_arg.get()))
+    {
+        if (f->name != "$secret_id")
+        {
+            arg_num = 2;
+        }
+        else
+        {
+            arg_num = 2;
+        }
+    }
+    else if (auto * literal = dynamic_cast<DB::ASTLiteral *>(second_arg.get()))
+    {
+        if (literal->value.getType() == DB::Field::Types::String)
+        {
+            std::string val = literal->value.safeGet<std::string>();
+            if (val.find('.') != std::string::npos)
+                arg_num = 2;
+            else
+                arg_num = 3;
+        }
+        else
+        {
+            arg_num = 2;
+        }
+    }
+    else
+    {
+        arg_num = 2;
+    }
+
+    if (arg_num >= args.size())
+        return std::nullopt;
+
+    const auto & user_arg = args[arg_num];
+    if (!isPasswordArg(user_arg))
+        return std::nullopt;
+
+    arg_num++;
+
+    if (arg_num >= args.size())
+        return std::nullopt;
+
+    const auto & password_arg = args[arg_num];
+    if (!isPasswordArg(password_arg))
+        return std::nullopt;
+
+    return arg_num;
+}
+
+static bool checkPlaintextPasswordInRemote(DB::ASTPtr node)
+{
+    if (!node) return false;
+
+    if (auto * func = dynamic_cast<DB::ASTFunction *>(node.get()))
+    {
+        if (func->name == "remote" || func->name == "remoteSecure")
+        {
+            auto password_idx = getPasswordArgIndex(func);
+            if (password_idx.has_value())
+            {
+                const auto & password_arg = func->arguments->children[*password_idx];
+                if (isStringLiteral(password_arg) && !isSecretIdCall(password_arg))
+                    return true;
+            }
+        }
+    }
+
+    for (const auto & child : node->children)
+    {
+        if (checkPlaintextPasswordInRemote(child))
+            return true;
+    }
+
+    return false;
+}
+
+static std::string hasPlaintextPasswordImpl(const std::string & sql)
+{
+    using namespace DB;
+
+    ASTPtr ast = parseSqlToAST(sql);
+    if (!ast)
+        throw Exception(ErrorCodes::SYNTAX_ERROR, "Failed to parse SQL");
+
+    bool result = checkPlaintextPasswordInRemote(ast);
+    return SerializeToJSON(result);
 }
 
 
@@ -571,6 +703,33 @@ extern "C" {
     }
 
     void __attribute__((visibility("default"))) chqp_free_replace_secret_ids_error(char* error_msg) {
+        free(error_msg);
+    }
+
+    void __attribute__((visibility("default"))) chqp_has_plaintext_password_in_remote(char* sql, char** result_json, char** error_msg) {
+        *result_json = nullptr;
+        *error_msg = nullptr;
+        try {
+            std::string result = hasPlaintextPasswordImpl(std::string(sql));
+            *result_json = reinterpret_cast<char*>(malloc(result.size() + 1));
+            std::memcpy(*result_json, result.c_str(), result.size() + 1);
+        } catch (const std::exception& e) {
+            const char* msg = e.what();
+            size_t msg_len = strlen(msg);
+            *error_msg = reinterpret_cast<char*>(malloc(msg_len + 1));
+            std::memcpy(*error_msg, msg, msg_len + 1);
+        } catch (...) {
+            const char* msg = "Unknown error";
+            *error_msg = reinterpret_cast<char*>(malloc(strlen(msg) + 1));
+            std::memcpy(*error_msg, msg, strlen(msg) + 1);
+        }
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_has_plaintext_password_result(char* result_json) {
+        free(result_json);
+    }
+
+    void __attribute__((visibility("default"))) chqp_free_has_plaintext_password_error(char* error_msg) {
         free(error_msg);
     }
 }
